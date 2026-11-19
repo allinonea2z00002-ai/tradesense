@@ -1,40 +1,60 @@
-# GitHub Actions workflow — nije add koro
+# TradeLens — GitHub Actions workflow
 
-Muse GitHub App diye workflow file push korte pare na, tai ei file-ta
-GitHub web-e nije banao:
+Muse's GitHub App cannot write workflow files, so create this file yourself:
+repo → **Add file → Create new file** → path `.github/workflows/android-build.yml` → paste the block below → **Commit changes**.
 
-1. Repo-te jao: `allinonea2z00002-ai/tradesense`
-2. `Add file` → `Create new file`
-3. Path dao: `.github/workflows/android-build.yml`
-4. Niche-r code-ta pura paste koro, tarpor `Commit changes`
+This version is the same as before, but on failure it prints the real error lines
+as annotations (so the error can be seen without opening the log) and uploads
+`build.log` as an artifact.
 
 ```yaml
 name: Build APK
+
 on:
   push:
-    branches: [main]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+
+      - uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-      - name: Set up Gradle 8.7
-        uses: gradle/actions/setup-gradle@v3
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: 8.7
+
       - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
-      - name: Upload APK
+        run: |
+          set +e
+          gradle assembleDebug --stacktrace > build.log 2>&1
+          CODE=$?
+          echo "Gradle exit code: $CODE"
+          if [ "$CODE" -ne 0 ]; then
+            echo "--- error lines ---"
+            grep -E "^e: |FAILURE|What went wrong|error:" build.log | head -40 > error-lines.txt || true
+            while IFS= read -r line; do
+              esc=$(printf '%s' "$line" | sed 's/%/%25/g; s/\r/%0D/g')
+              echo "::error::$esc"
+            done < error-lines.txt
+          fi
+          exit $CODE
+
+      - name: Upload build log
+        if: failure()
         uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+
+      - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: tradelens-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 ```
-
-Tarpor Actions tab-e giye build green hole `tradelens-apk` download koro.
