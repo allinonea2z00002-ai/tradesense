@@ -18,7 +18,6 @@ object MarketRepository {
             val ticker = MarketApi.fetchTicker(asset)
             if (ticker.first > 0) ticker else Pair(candles.last().close, 0.0)
         }
-        val analysis = Indicators.analyse(candles)
         val news = if (offline) {
             listOf(
                 NewsItem(
@@ -30,14 +29,37 @@ object MarketRepository {
         } else {
             MarketApi.fetchNews(asset)
         }
+        // ১ দিনের ট্রেন্ড — মাল্টি-টাইমফ্রেম মিল (confluence) যাচাইয়ের জন্য
+        val dailyCandles = MarketApi.fetchCandles(asset, "1d")
+        val dailyTrend = if (dailyCandles.size >= 20) {
+            Indicators.analyse(dailyCandles).trend
+        } else {
+            null
+        }
+        return buildAnalysis(asset, timeframe, candles, price, change24h, news, offline, dailyTrend)
+    }
+
+    /** দেওয়া ক্যান্ডেল দিয়ে পুরো বিশ্লেষণ বানায় — লাইভ আর ডেমো দুই জায়গাতেই ব্যবহৃত হয়। */
+    fun buildAnalysis(
+        asset: Asset,
+        timeframe: String,
+        candles: List<Candle>,
+        price: Double,
+        change24hPct: Double,
+        news: List<NewsItem>,
+        offline: Boolean,
+        dailyTrend: Trend?
+    ): MarketAnalysis {
+        val analysis = Indicators.analyse(candles)
         val score = ScoreEngine.compute(price, analysis, news)
         val (scenarios, stopLoss, target) = ScoreEngine.scenarios(score.total, price, analysis)
         val closes = candles.map { it.close }
         val forecast = buildForecast(asset, timeframe, candles, analysis, score.total, price, news, target, stopLoss)
+        val ultra = Indicators.ultraAnalysis(analysis, candles, score.total, dailyTrend, price)
         return MarketAnalysis(
             asset = asset,
             price = price,
-            change24hPct = change24h,
+            change24hPct = change24hPct,
             candles = candles,
             ema20Series = Indicators.ema(closes, 20),
             analysis = analysis,
@@ -48,7 +70,8 @@ object MarketRepository {
             target = target,
             news = news,
             offlineDemo = offline,
-            forecast = forecast
+            forecast = forecast,
+            ultra = ultra
         )
     }
 

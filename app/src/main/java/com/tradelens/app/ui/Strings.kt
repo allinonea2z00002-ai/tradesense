@@ -45,7 +45,17 @@ data class UiText(
     val verdictAvoid: String,
     val tagPositive: String,
     val tagNegative: String,
-    val tagNeutral: String
+    val tagNeutral: String,
+    val ultraTitle: String,
+    val demoChart: String,
+    val liveChart: String,
+    val demoBadge: String,
+    val trendStrength: String,
+    val volatility: String,
+    val divergence: String,
+    val breakoutChance: String,
+    val dailyTrend: String,
+    val confluence: String
 )
 
 val StringsBn = UiText(
@@ -92,7 +102,17 @@ val StringsBn = UiText(
     verdictAvoid = "এড়িয়ে চলুন (Avoid / Sell)",
     tagPositive = "● পজিটিভ",
     tagNegative = "● নেগেটিভ",
-    tagNeutral = "● নিউট্রাল"
+    tagNeutral = "● নিউট্রাল",
+    ultraTitle = "আল্ট্রা অ্যানালিটিক্স",
+    demoChart = "ডেমো চার্ট",
+    liveChart = "লাইভ",
+    demoBadge = "লাইভ ডেমো — সিমুলেটেড ডেটা, প্রতি ৩ সেকেন্ডে আপডেট হয়",
+    trendStrength = "ট্রেন্ডের শক্তি",
+    volatility = "ভোলাটিলিটি",
+    divergence = "ডাইভারজেন্স",
+    breakoutChance = "ব্রেকআউটের সম্ভাবনা",
+    dailyTrend = "১ দিনের ট্রেন্ড",
+    confluence = "মাল্টি-টাইমফ্রেম মিল"
 )
 
 val StringsEn = UiText(
@@ -139,7 +159,17 @@ val StringsEn = UiText(
     verdictAvoid = "Avoid / Sell",
     tagPositive = "● Positive",
     tagNegative = "● Negative",
-    tagNeutral = "● Neutral"
+    tagNeutral = "● Neutral",
+    ultraTitle = "Ultra Analytics",
+    demoChart = "Demo Chart",
+    liveChart = "Live",
+    demoBadge = "Live demo — simulated data, updates every 3 seconds",
+    trendStrength = "Trend Strength",
+    volatility = "Volatility",
+    divergence = "Divergence",
+    breakoutChance = "Breakout Chance",
+    dailyTrend = "1-Day Trend",
+    confluence = "Multi-Timeframe Confluence"
 )
 
 fun stringsFor(lang: String): UiText = if (lang == "en") StringsEn else StringsBn

@@ -86,6 +86,20 @@ data class Forecast(
     val action: String
 )
 
+/** আল্ট্রা অ্যানালিটিক্স — ট্রেন্ডের শক্তি, ডাইভারজেন্স, ভোলাটিলিটি, ব্রেকআউট সম্ভাবনা, মাল্টি-টাইমফ্রেম মিল। */
+data class UltraAnalysis(
+    val trendStrength: String,
+    val trendStrengthPct: Int,
+    val volatility: String,
+    val divergence: String,
+    val divergenceBearish: Boolean,
+    val breakoutChance: Int,
+    val dailyTrend: Trend,
+    val confluence: Boolean,
+    val ultraScore: Int,
+    val ultraVerdict: String
+)
+
 data class MarketAnalysis(
     val asset: Asset,
     val price: Double,
@@ -100,5 +114,6 @@ data class MarketAnalysis(
     val target: Double,
     val news: List<NewsItem>,
     val offlineDemo: Boolean,
-    val forecast: Forecast
+    val forecast: Forecast,
+    val ultra: UltraAnalysis
 )

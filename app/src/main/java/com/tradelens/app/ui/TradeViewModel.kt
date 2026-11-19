@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.tradelens.app.analysis.Indicators
 import com.tradelens.app.data.Asset
 import com.tradelens.app.data.Assets
 import com.tradelens.app.data.Category
@@ -11,6 +12,7 @@ import com.tradelens.app.data.MarketAnalysis
 import com.tradelens.app.data.MarketApi
 import com.tradelens.app.data.MarketRepository
 import com.tradelens.app.data.NewsItem
+import com.tradelens.app.data.Sentiment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -33,6 +35,7 @@ data class TradeUiState(
     val quotes: Map<String, Pair<Double, Double>> = emptyMap(),
     val watchlist: Set<String> = emptySet(),
     val allNews: List<NewsItem> = emptyList(),
+    val demoMode: Boolean = false,
     val timeframe: String = "1h",
     val analysis: MarketAnalysis? = null,
     val loading: Boolean = false,
@@ -53,8 +56,60 @@ class TradeViewModel(application: Application) : AndroidViewModel(application) {
 
     private var loadJob: Job? = null
     private var refreshJob: Job? = null
+    private var demoJob: Job? = null
 
     val timeframes = listOf("1m", "5m", "15m", "1h", "4h", "1d")
+
+    /** ডেমো চার্ট — সিমুলেটেড লাইভ ডেটা, প্রতি ৩ সেকেন্ডে নতুন টিক। */
+    fun toggleDemo() {
+        val on = !_state.value.demoMode
+        _state.value = _state.value.copy(demoMode = on)
+        if (on) startDemo() else {
+            demoJob?.cancel()
+            demoJob = null
+            load()
+        }
+    }
+
+    private fun startDemo() {
+        demoJob?.cancel()
+        loadJob?.cancel()
+        demoJob = viewModelScope.launch {
+            val asset = _state.value.selected
+            val timeframe = _state.value.timeframe
+            var candles = MarketApi.demoCandles(asset)
+            val demoNews = listOf(
+                NewsItem(
+                    "ডেমো মোড — সিমুলেটেড ডেটা",
+                    "TradeLens", "এখন", "",
+                    Sentiment.NEUTRAL
+                )
+            )
+            var tick = 0
+            while (true) {
+                val dailyTrend = _state.value.analysis?.ultra?.dailyTrend
+                val built = MarketRepository.buildAnalysis(
+                    asset, timeframe, candles, candles.last().close, 0.0, demoNews, true, dailyTrend
+                )
+                _state.value = _state.value.copy(analysis = built, loading = false, error = null)
+                delay(3000)
+                tick++
+                val last = candles.last()
+                val drift = (kotlin.random.Random.nextDouble() - 0.48) * last.close * 0.002
+                val newClose = last.close + drift
+                val updated = last.copy(
+                    close = newClose,
+                    high = maxOf(last.high, newClose),
+                    low = minOf(last.low, newClose)
+                )
+                candles = if (tick % 5 == 0) {
+                    (candles + updated.copy(time = last.time + Indicators.timeframeMillis(timeframe))).takeLast(100)
+                } else {
+                    candles.dropLast(1) + updated
+                }
+            }
+        }
+    }
 
     init {
         load()
@@ -134,6 +189,10 @@ class TradeViewModel(application: Application) : AndroidViewModel(application) {
     fun refresh() = load()
 
     private fun load(silent: Boolean = false) {
+        if (_state.value.demoMode) {
+            startDemo()
+            return
+        }
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             val current = _state.value

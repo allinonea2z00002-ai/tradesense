@@ -30,6 +30,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -460,6 +464,9 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
         Verdict.WAIT -> TradeAmber
         Verdict.AVOID -> TradeRed
     }
+    // Chart zoom state — কতটা ক্যান্ডেল দেখাবে, আর কতটা পিছনে গেছে
+    var visibleCount by remember { mutableIntStateOf(60) }
+    var startIndex by remember { mutableIntStateOf(0) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Price header
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
@@ -496,10 +503,26 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
             }
         }
 
-        // Chart + timeframe
+        // Chart + timeframe + zoom + demo
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp)) {
-                Text("${s.chartTitle} — ${state.timeframe}", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${s.chartTitle} — ${state.timeframe}",
+                        fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f)
+                    )
+                    AssistChip(
+                        onClick = { vm.toggleDemo() },
+                        label = { Text(if (state.demoMode) s.demoChart else s.liveChart) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = if (state.demoMode) TradeAmber else TradeCard,
+                            labelColor = if (state.demoMode) Color.Black else Color.White
+                        )
+                    )
+                }
+                if (state.demoMode) {
+                    Text(s.demoBadge, color = TradeAmber, fontSize = 12.sp)
+                }
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(vm.timeframes) { tf ->
@@ -514,15 +537,38 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("জুম:", color = TradeMuted, fontSize = 13.sp)
+                    TextButton(onClick = { visibleCount = (visibleCount + 10).coerceAtMost(100) }) {
+                        Text("－", color = TradeGreen, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text("$visibleCount", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    TextButton(onClick = { visibleCount = (visibleCount - 10).coerceAtLeast(15) }) {
+                        Text("＋", color = TradeGreen, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = { visibleCount = 60; startIndex = 0 }) {
+                        Text("⟲ রিসেট", color = TradeGreen, fontSize = 13.sp)
+                    }
+                }
                 CandleChart(
                     candles = analysis.candles,
                     ema20 = analysis.ema20Series,
                     support = a.support,
                     resistance = a.resistance,
-                    forecast = analysis.forecast.candles
+                    forecast = analysis.forecast.candles,
+                    visibleCount = visibleCount,
+                    startIndex = startIndex,
+                    onPan = { drag ->
+                        val maxStart = (analysis.candles.size - visibleCount).coerceAtLeast(0)
+                        startIndex = (startIndex - (drag / 12f).toInt()).coerceIn(0, maxStart)
+                    }
                 )
                 Text(s.chartLegend, color = TradeMuted, fontSize = 11.sp)
                 Text(s.forecastLegend, color = TradeAmber, fontSize = 11.sp)
+                Text(
+                    "চার্টে আঙুল টেনে আগের ক্যান্ডেল দেখুন • ＋ চাপলে জুম ইন, － চাপলে জুম আউট",
+                    color = TradeMuted, fontSize = 11.sp
+                )
             }
         }
 
@@ -561,6 +607,71 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                     prev = c.close
                 }
                 Text(s.forecastNote, color = TradeMuted, fontSize = 11.sp)
+            }
+        }
+
+        // Ultra Analytics
+        Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val u = analysis.ultra
+                val ultraColor = when {
+                    u.ultraScore >= 70 -> TradeGreen
+                    u.ultraScore >= 45 -> TradeAmber
+                    else -> TradeRed
+                }
+                Text(s.ultraTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${u.ultraScore}/100",
+                        fontSize = 30.sp, fontWeight = FontWeight.Bold, color = ultraColor
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(u.ultraVerdict, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = ultraColor)
+                }
+                LinearProgressIndicator(
+                    progress = u.ultraScore / 100f,
+                    modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
+                    color = ultraColor,
+                    trackColor = Color(0xFF26324A)
+                )
+                Row(Modifier.fillMaxWidth()) {
+                    Text(s.trendStrength, color = TradeMuted, modifier = Modifier.weight(1f))
+                    Text("${u.trendStrength} (${u.trendStrengthPct}%)", fontWeight = FontWeight.Bold)
+                }
+                LinearProgressIndicator(
+                    progress = u.trendStrengthPct / 100f,
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                    color = TradeBlue,
+                    trackColor = Color(0xFF26324A)
+                )
+                IndicatorRow(s.volatility, u.volatility)
+                Row(Modifier.fillMaxWidth()) {
+                    Text(s.breakoutChance, color = TradeMuted, modifier = Modifier.weight(1f))
+                    Text("${u.breakoutChance}%", fontWeight = FontWeight.Bold)
+                }
+                LinearProgressIndicator(
+                    progress = u.breakoutChance / 100f,
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                    color = TradeAmber,
+                    trackColor = Color(0xFF26324A)
+                )
+                val dailyText = when (u.dailyTrend) {
+                    Trend.UPTREND -> "আপ"
+                    Trend.DOWNTREND -> "ডাউন"
+                    Trend.SIDEWAYS -> "সাইডওয়েজ"
+                }
+                IndicatorRow(s.dailyTrend, dailyText)
+                Text(
+                    s.confluence + ": " + if (u.confluence) {
+                        "হ্যাঁ — ১ ঘণ্টা আর ১ দিনের ট্রেন্ড একই দিকে, সিগন্যাল শক্তিশালী।"
+                    } else {
+                        "না — টাইমফ্রেমগুলো একমত নয়, সাবধানে থাকুন।"
+                    }
+                )
+                Text(
+                    s.divergence + ": " + u.divergence,
+                    color = if (u.divergenceBearish) TradeRed else TradeMuted
+                )
             }
         }
 

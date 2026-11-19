@@ -207,4 +207,90 @@ object Indicators {
         }
         return out
     }
+
+    /** দাম বনাম RSI মোমেন্টাম ডাইভারজেন্স — দাম একদিকে, RSI অন্যদিকে গেলে সতর্কতা। */
+    fun detectDivergence(candles: List<Candle>): Pair<String, Boolean> {
+        val closes = candles.map { it.close }
+        if (closes.size < 30) return Pair("ডাইভারজেন্স যাচাই করার মতো ডেটা নেই", false)
+        val recent = closes.takeLast(20)
+        val prev = closes.dropLast(10).takeLast(20)
+        val priceChg = (recent.last() - prev.last()) / prev.last() * 100
+        val rsiRecent = rsi(recent)
+        val rsiPrev = rsi(prev)
+        return when {
+            priceChg > 1.5 && rsiRecent < rsiPrev - 5 ->
+                Pair("বিয়ারিশ ডাইভারজেন্স — দাম বাড়ছে কিন্তু RSI কমছে, নিচে আসার সতর্কতা।", true)
+            priceChg < -1.5 && rsiRecent > rsiPrev + 5 ->
+                Pair("বুলিশ ডাইভারজেন্স — দাম কমছে কিন্তু RSI বাড়ছে, বাউন্সের সম্ভাবনা।", false)
+            else -> Pair("কোনো ডাইভারজেন্স নেই — দাম আর RSI একই দিকে।", false)
+        }
+    }
+
+    /** আল্ট্রা অ্যানালিটিক্স — সব ফ্যাক্টর মিলিয়ে ১০০-র মধ্যে আল্ট্রা স্কোর। */
+    fun ultraAnalysis(
+        analysis: Analysis,
+        candles: List<Candle>,
+        scoreTotal: Int,
+        dailyTrend: Trend?,
+        price: Double
+    ): com.tradelens.app.data.UltraAnalysis {
+        val closes = candles.map { it.close }
+        val spreadPct = if (price > 0) kotlin.math.abs(analysis.ema20 - analysis.ema50) / price * 100 else 0.0
+        val atrPct = if (price > 0 && analysis.atr > 0) analysis.atr / price * 100 else 0.0
+        val ratio = if (atrPct > 0) spreadPct / atrPct else 0.0
+        val strengthPct = (ratio * 50).toInt().coerceIn(0, 100)
+        val strengthLabel = when {
+            strengthPct >= 60 -> "শক্তিশালী"
+            strengthPct >= 30 -> "মাঝারি"
+            else -> "দুর্বল"
+        }
+        val volatility = when {
+            atrPct < 1.0 -> "কম"
+            atrPct < 3.0 -> "স্বাভাবিক"
+            else -> "বেশি"
+        }
+        val (divergenceText, divergenceBearish) = detectDivergence(candles)
+        val atr = if (analysis.atr > 0) analysis.atr else price * 0.01
+        val breakoutChance = when (analysis.trend) {
+            Trend.UPTREND -> {
+                val dist = if (analysis.resistance > price) (analysis.resistance - price) / atr else 0.0
+                (75 - dist * 20).toInt()
+            }
+            Trend.DOWNTREND -> {
+                val dist = if (price > analysis.support) (price - analysis.support) / atr else 0.0
+                (75 - dist * 20).toInt()
+            }
+            else -> 35
+        }.coerceIn(5, 95)
+        val daily = dailyTrend ?: analysis.trend
+        val confluence = dailyTrend != null && dailyTrend == analysis.trend
+        val confluenceScore = if (confluence) 100 else 40
+        val divergenceScore = if (divergenceBearish) 20 else 90
+        val rsiScore = when {
+            analysis.rsi in 40.0..65.0 -> 90
+            analysis.rsi < 30 || analysis.rsi > 70 -> 50
+            else -> 70
+        }
+        val ultraScore = (
+            strengthPct * 0.25 + breakoutChance * 0.25 +
+                confluenceScore * 0.2 + divergenceScore * 0.15 + rsiScore * 0.15
+            ).toInt().coerceIn(0, 100)
+        val ultraVerdict = when {
+            ultraScore >= 70 -> "আল্ট্রা স্ট্রং"
+            ultraScore >= 45 -> "মাঝারি"
+            else -> "দুর্বল"
+        }
+        return com.tradelens.app.data.UltraAnalysis(
+            trendStrength = strengthLabel,
+            trendStrengthPct = strengthPct,
+            volatility = volatility,
+            divergence = divergenceText,
+            divergenceBearish = divergenceBearish,
+            breakoutChance = breakoutChance,
+            dailyTrend = daily,
+            confluence = confluence,
+            ultraScore = ultraScore,
+            ultraVerdict = ultraVerdict
+        )
+    }
 }

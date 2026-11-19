@@ -1,6 +1,7 @@
 package com.tradelens.app.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -9,6 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.tradelens.app.data.Candle
 import com.tradelens.app.ui.theme.TradeAmber
@@ -25,21 +27,29 @@ fun CandleChart(
     support: Double,
     resistance: Double,
     forecast: List<Candle> = emptyList(),
+    visibleCount: Int = 60,
+    startIndex: Int = 0,
+    onPan: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Canvas(
         modifier = modifier
             .fillMaxWidth()
             .height(280.dp)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { _, dragAmount -> onPan(dragAmount) }
+            }
     ) {
         if (candles.isEmpty()) return@Canvas
-        val shown = candles.takeLast(55)
-        val all = shown + forecast
-        val emaShown = if (ema20.size >= shown.size) {
-            ema20.takeLast(shown.size)
-        } else {
-            emptyList()
-        }
+        // Zoom window: kotota candle dekhabe, ar sesh theke koto pichone
+        val total = candles.size
+        val end = (total - startIndex).coerceIn(0, total)
+        val start = (end - visibleCount).coerceAtLeast(0)
+        val shown = if (end > start) candles.subList(start, end) else emptyList()
+        if (shown.isEmpty()) return@Canvas
+        val showForecast = startIndex == 0
+        val all = if (showForecast) shown + forecast else shown
+        val emaShown = if (ema20.size == total) ema20.subList(start, end) else emptyList()
         var lo = all.minOf { it.low }
         var hi = all.maxOf { it.high }
         if (support > 0) lo = min(lo, support)
@@ -67,7 +77,7 @@ fun CandleChart(
             )
         }
         // Forecast target line (last projected close)
-        if (forecast.isNotEmpty()) {
+        if (showForecast && forecast.isNotEmpty()) {
             drawLine(
                 color = TradeAmber, start = Offset(0f, y(forecast.last().close)),
                 end = Offset(size.width, y(forecast.last().close)),
@@ -75,7 +85,7 @@ fun CandleChart(
             )
         }
         // Divider between real and forecast candles
-        if (forecast.isNotEmpty()) {
+        if (showForecast && forecast.isNotEmpty()) {
             val dx = size.width * shown.size / all.size
             drawLine(
                 color = Color.White.copy(alpha = 0.5f),
@@ -86,7 +96,7 @@ fun CandleChart(
         // Candles: real solid, forecast dashed + translucent
         val bodyW = size.width / all.size * 0.6f
         all.forEachIndexed { i, c ->
-            val isForecast = i >= shown.size
+            val isForecast = showForecast && i >= shown.size
             val up = c.close >= c.open
             val base = if (up) TradeGreen else TradeRed
             val color = if (isForecast) base.copy(alpha = 0.45f) else base
