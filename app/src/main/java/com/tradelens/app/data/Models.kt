@@ -69,6 +69,23 @@ data class Scenario(
     val description: String
 )
 
+data class ForecastCandle(
+    val candle: Candle,
+    val label: String
+)
+
+/** Porer candle-gula kemon hote pare — eta prediction na, trend/ATR/score diye banano demo projection. */
+data class Forecast(
+    val candles: List<Candle>,
+    val direction: String,
+    val directionText: String,
+    val movePct: Double,
+    val targetPrice: Double,
+    val perCandleText: String,
+    val reasons: List<String>,
+    val action: String
+)
+
 data class MarketAnalysis(
     val asset: Asset,
     val price: Double,
@@ -82,5 +99,6 @@ data class MarketAnalysis(
     val stopLoss: Double,
     val target: Double,
     val news: List<NewsItem>,
-    val offlineDemo: Boolean
+    val offlineDemo: Boolean,
+    val forecast: Forecast
 )

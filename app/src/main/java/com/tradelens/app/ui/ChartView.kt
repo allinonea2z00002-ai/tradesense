@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.tradelens.app.data.Candle
+import com.tradelens.app.ui.theme.TradeAmber
 import com.tradelens.app.ui.theme.TradeBlue
 import com.tradelens.app.ui.theme.TradeGreen
 import com.tradelens.app.ui.theme.TradeRed
@@ -23,22 +24,24 @@ fun CandleChart(
     ema20: List<Double>,
     support: Double,
     resistance: Double,
+    forecast: List<Candle> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(260.dp)
+            .height(280.dp)
     ) {
         if (candles.isEmpty()) return@Canvas
-        val shown = candles.takeLast(60)
+        val shown = candles.takeLast(55)
+        val all = shown + forecast
         val emaShown = if (ema20.size >= shown.size) {
             ema20.takeLast(shown.size)
         } else {
             emptyList()
         }
-        var lo = shown.minOf { it.low }
-        var hi = shown.maxOf { it.high }
+        var lo = all.minOf { it.low }
+        var hi = all.maxOf { it.high }
         if (support > 0) lo = min(lo, support)
         if (resistance > 0) hi = max(hi, resistance)
         if (hi - lo < 1e-9) hi = lo + 1.0
@@ -47,7 +50,7 @@ fun CandleChart(
         hi += pad
         fun y(price: Double): Float =
             (size.height - ((price - lo) / (hi - lo) * size.height)).toFloat()
-        fun x(i: Int): Float = size.width * (i + 0.5f) / shown.size
+        fun x(i: Int): Float = size.width * (i + 0.5f) / all.size
 
         // Support / resistance dashed lines
         val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
@@ -63,20 +66,49 @@ fun CandleChart(
                 end = Offset(size.width, y(resistance)), strokeWidth = 2f, pathEffect = dash
             )
         }
-        // Candles
-        val bodyW = size.width / shown.size * 0.6f
-        shown.forEachIndexed { i, c ->
+        // Forecast target line (last projected close)
+        if (forecast.isNotEmpty()) {
+            drawLine(
+                color = TradeAmber, start = Offset(0f, y(forecast.last().close)),
+                end = Offset(size.width, y(forecast.last().close)),
+                strokeWidth = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+            )
+        }
+        // Divider between real and forecast candles
+        if (forecast.isNotEmpty()) {
+            val dx = size.width * shown.size / all.size
+            drawLine(
+                color = Color.White.copy(alpha = 0.5f),
+                start = Offset(dx, 0f), end = Offset(dx, size.height),
+                strokeWidth = 2f, pathEffect = dash
+            )
+        }
+        // Candles: real solid, forecast dashed + translucent
+        val bodyW = size.width / all.size * 0.6f
+        all.forEachIndexed { i, c ->
+            val isForecast = i >= shown.size
             val up = c.close >= c.open
-            val color = if (up) TradeGreen else TradeRed
+            val base = if (up) TradeGreen else TradeRed
+            val color = if (isForecast) base.copy(alpha = 0.45f) else base
             val cx = x(i)
-            drawLine(color, Offset(cx, y(c.high)), Offset(cx, y(c.low)), strokeWidth = 2f)
+            val wickEffect = if (isForecast) dash else null
+            drawLine(color, Offset(cx, y(c.high)), Offset(cx, y(c.low)), strokeWidth = 2f, pathEffect = wickEffect)
             val top = y(max(c.open, c.close))
             val bottom = y(min(c.open, c.close))
-            drawRect(
-                color = color,
-                topLeft = Offset(cx - bodyW / 2, top),
-                size = androidx.compose.ui.geometry.Size(bodyW, max(2f, bottom - top))
-            )
+            if (isForecast) {
+                drawRect(
+                    color = color,
+                    topLeft = Offset(cx - bodyW / 2, top),
+                    size = androidx.compose.ui.geometry.Size(bodyW, max(2f, bottom - top)),
+                    style = Stroke(width = 2f, pathEffect = dash)
+                )
+            } else {
+                drawRect(
+                    color = color,
+                    topLeft = Offset(cx - bodyW / 2, top),
+                    size = androidx.compose.ui.geometry.Size(bodyW, max(2f, bottom - top))
+                )
+            }
         }
         // EMA20 line
         if (emaShown.size == shown.size) {

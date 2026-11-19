@@ -136,4 +136,75 @@ object Indicators {
             atr = atr(candles)
         )
     }
+
+    fun timeframeMillis(timeframe: String): Long = when (timeframe) {
+        "1m" -> 60_000L
+        "5m" -> 300_000L
+        "15m" -> 900_000L
+        "1h" -> 3_600_000L
+        "4h" -> 14_400_000L
+        else -> 86_400_000L
+    }
+
+    /**
+     * Porer [count] ta candle kemon dekhte hote pare — demo projection, guarantee na.
+     * Trend (EMA), RSI momentum, ATR range ar support/resistance diye banano.
+     * Deterministic wobble: same candle/timeframe-e protibar eki projection dekhabe.
+     */
+    fun forecastCandles(
+        candles: List<Candle>,
+        analysis: Analysis,
+        scoreTotal: Int,
+        timeframe: String,
+        count: Int = 5
+    ): List<Candle> {
+        if (candles.size < 5) return emptyList()
+        val last = candles.last()
+        val atr = if (analysis.atr > 0) analysis.atr else last.close * 0.01
+        val trendDir = when (analysis.trend) {
+            Trend.UPTREND -> 1.0
+            Trend.DOWNTREND -> -1.0
+            else -> 0.0
+        }
+        // RSI extreme hole ulto dike tan pore
+        val momentum = when {
+            analysis.rsi > 75 -> -0.4
+            analysis.rsi < 25 -> 0.4
+            else -> 0.0
+        }
+        val dir = (trendDir + momentum).coerceIn(-1.0, 1.0)
+        val stepBase = atr * 0.45
+        var seed = (last.time xor timeframe.hashCode().toLong()) and 0x7fffffffL
+        fun nextRand(): Double {
+            seed = (seed * 1103515245 + 12345) and 0x7fffffffL
+            return seed / 0x7fffffff.toDouble()
+        }
+        val stepMs = timeframeMillis(timeframe)
+        val strongBreakout = scoreTotal >= 70
+        val out = ArrayList<Candle>()
+        var prevClose = last.close
+        var t = last.time + stepMs
+        repeat(count) { i ->
+            val damp = 1.0 - i * 0.12
+            val drift = dir * stepBase * damp + (nextRand() - 0.5) * atr * 0.5
+            val open = prevClose
+            var close = open + drift
+            // Support/resistance-er baire jete na parle okhanei atke jabe,
+            // score strong hole breakout korte pare.
+            if (!strongBreakout) {
+                if (close > analysis.resistance && analysis.resistance > 0) {
+                    close = min(close, analysis.resistance * 1.005)
+                }
+                if (close < analysis.support && analysis.support > 0) {
+                    close = max(close, analysis.support * 0.995)
+                }
+            }
+            val high = maxOf(open, close) + nextRand() * atr * 0.25
+            val low = minOf(open, close) - nextRand() * atr * 0.25
+            out.add(Candle(t, open, high, low, close, last.volume))
+            prevClose = close
+            t += stepMs
+        }
+        return out
+    }
 }

@@ -6,8 +6,12 @@ import com.tradelens.app.data.Asset
 import com.tradelens.app.data.Assets
 import com.tradelens.app.data.Category
 import com.tradelens.app.data.MarketAnalysis
+import com.tradelens.app.data.MarketApi
 import com.tradelens.app.data.MarketRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +22,8 @@ data class TradeUiState(
     val assets: List<Asset> = Assets.all,
     val category: Category? = null,
     val selected: Asset = Assets.all.first(),
+    val detailAsset: Asset? = null,
+    val quotes: Map<String, Pair<Double, Double>> = emptyMap(),
     val timeframe: String = "1h",
     val analysis: MarketAnalysis? = null,
     val loading: Boolean = false,
@@ -36,12 +42,35 @@ class TradeViewModel : ViewModel() {
 
     init {
         load()
+        loadQuotes()
         refreshJob = viewModelScope.launch {
             while (true) {
                 delay(60_000)
                 load(silent = true)
+                loadQuotes()
             }
         }
+    }
+
+    /** Sob asset-er live price + 24h change, list-e dekhanor jonno. */
+    private fun loadQuotes() {
+        viewModelScope.launch {
+            val deferred = Assets.all.map { asset ->
+                async(Dispatchers.IO) { asset.id to MarketApi.fetchTicker(asset) }
+            }
+            val map = deferred.awaitAll().toMap()
+            _state.value = _state.value.copy(quotes = map)
+        }
+    }
+
+    /** Coin-e tap korle tar pura detail window khulbe. */
+    fun openDetail(asset: Asset) {
+        _state.value = _state.value.copy(detailAsset = asset, selected = asset, analysis = null)
+        load()
+    }
+
+    fun closeDetail() {
+        _state.value = _state.value.copy(detailAsset = null)
     }
 
     fun selectCategory(category: Category?) {
