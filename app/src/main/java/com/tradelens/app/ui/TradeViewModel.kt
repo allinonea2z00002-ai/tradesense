@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.tradelens.app.analysis.Indicators
 import com.tradelens.app.data.Asset
 import com.tradelens.app.data.Assets
+import com.tradelens.app.data.Candle
 import com.tradelens.app.data.Category
 import com.tradelens.app.data.MarketAnalysis
 import com.tradelens.app.data.MarketApi
@@ -36,6 +37,9 @@ data class TradeUiState(
     val watchlist: Set<String> = emptySet(),
     val allNews: List<NewsItem> = emptyList(),
     val demoMode: Boolean = false,
+    val photoMode: Boolean = false,
+    val screenMode: Boolean = false,
+    val screenCandles: List<Candle> = emptyList(),
     val timeframe: String = "1h",
     val analysis: MarketAnalysis? = null,
     val loading: Boolean = false,
@@ -161,6 +165,24 @@ class TradeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Coin-e tap korle tar pura detail window khulbe. */
+    /** ফটো অ্যানালিটিক্স স্ক্রিন খোলা/বন্ধ। */
+    fun openPhotoAnalytics() {
+        _state.value = _state.value.copy(photoMode = true)
+    }
+
+    fun closePhotoAnalytics() {
+        _state.value = _state.value.copy(photoMode = false)
+    }
+
+    /** স্ক্রিন ক্যান্ডেল অ্যানালিটিক্স — স্ক্রিনে যা ক্যান্ডেল দেখা যাচ্ছে তাই বিশ্লেষণ। */
+    fun openScreenAnalytics(candles: List<Candle>) {
+        _state.value = _state.value.copy(screenMode = true, screenCandles = candles)
+    }
+
+    fun closeScreenAnalytics() {
+        _state.value = _state.value.copy(screenMode = false)
+    }
+
     fun openDetail(asset: Asset) {
         _state.value = _state.value.copy(detailAsset = asset, selected = asset, analysis = null)
         load()

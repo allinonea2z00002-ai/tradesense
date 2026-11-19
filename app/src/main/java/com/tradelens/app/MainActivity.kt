@@ -22,6 +22,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tradelens.app.ui.DetailScreen
 import com.tradelens.app.ui.HomeScreen
 import com.tradelens.app.ui.NewsScreen
+import com.tradelens.app.ui.PhotoAnalyticsScreen
+import com.tradelens.app.ui.ScreenAnalyticsScreen
 import com.tradelens.app.ui.SettingsScreen
 import com.tradelens.app.ui.TopDropScreen
 import com.tradelens.app.ui.TradeViewModel
@@ -45,10 +47,20 @@ class MainActivity : ComponentActivity() {
                     val state by vm.state.collectAsState()
                     val s = state.strings
                     val detail = state.detailAsset
-                    if (detail != null) {
-                        BackHandler { vm.closeDetail() }
-                        DetailScreen(state = state, vm = vm)
-                    } else {
+                    when {
+                        state.photoMode -> {
+                            BackHandler { vm.closePhotoAnalytics() }
+                            PhotoAnalyticsScreen(state = state, vm = vm)
+                        }
+                        state.screenMode -> {
+                            BackHandler { vm.closeScreenAnalytics() }
+                            ScreenAnalyticsScreen(state = state, vm = vm)
+                        }
+                        detail != null -> {
+                            BackHandler { vm.closeDetail() }
+                            DetailScreen(state = state, vm = vm)
+                        }
+                        else -> {
                         Scaffold(
                             bottomBar = {
                                 NavigationBar(containerColor = TradeCard) {

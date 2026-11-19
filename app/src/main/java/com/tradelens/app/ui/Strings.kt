@@ -55,7 +55,18 @@ data class UiText(
     val divergence: String,
     val breakoutChance: String,
     val dailyTrend: String,
-    val confluence: String
+    val confluence: String,
+    val photoAnalytics: String,
+    val screenAnalytics: String,
+    val screenShort: String,
+    val pickPhoto: String,
+    val pickPhotoHint: String,
+    val nextCandle: String,
+    val candleSize: String,
+    val confidence: String,
+    val visibleCandles: String,
+    val pattern: String,
+    val analysisResult: String
 )
 
 val StringsBn = UiText(
@@ -112,7 +123,18 @@ val StringsBn = UiText(
     divergence = "ডাইভারজেন্স",
     breakoutChance = "ব্রেকআউটের সম্ভাবনা",
     dailyTrend = "১ দিনের ট্রেন্ড",
-    confluence = "মাল্টি-টাইমফ্রেম মিল"
+    confluence = "মাল্টি-টাইমফ্রেম মিল",
+    photoAnalytics = "ফটো অ্যানালিটিক্স",
+    screenAnalytics = "স্ক্রিন ক্যান্ডেল অ্যানালিটিক্স",
+    screenShort = "স্ক্রিন অ্যানালিটিক্স",
+    pickPhoto = "ছবি বেছে নিন",
+    pickPhotoHint = "অন্য অ্যাপের চার্টের স্ক্রিনশট বেছে নিন — অ্যাপটি ছবি বিশ্লেষণ করে পরের ক্যান্ডেল কেমন হতে পারে তা দেখাবে।",
+    nextCandle = "পরের ক্যান্ডেল",
+    candleSize = "ক্যান্ডেলের সাইজ",
+    confidence = "আত্মবিশ্বাস",
+    visibleCandles = "স্ক্রিনের ক্যান্ডেল",
+    pattern = "প্যাটার্ন",
+    analysisResult = "বিশ্লেষণের ফলাফল"
 )
 
 val StringsEn = UiText(
@@ -169,7 +191,18 @@ val StringsEn = UiText(
     divergence = "Divergence",
     breakoutChance = "Breakout Chance",
     dailyTrend = "1-Day Trend",
-    confluence = "Multi-Timeframe Confluence"
+    confluence = "Multi-Timeframe Confluence",
+    photoAnalytics = "Photo Analytics",
+    screenAnalytics = "Screen Candle Analytics",
+    screenShort = "Screen Analytics",
+    pickPhoto = "Choose a Photo",
+    pickPhotoHint = "Pick a chart screenshot from another app — the app will analyze the photo and show what the next candle could look like.",
+    nextCandle = "Next Candle",
+    candleSize = "Candle Size",
+    confidence = "Confidence",
+    visibleCandles = "Candles on Screen",
+    pattern = "Pattern",
+    analysisResult = "Analysis Result"
 )
 
 fun stringsFor(lang: String): UiText = if (lang == "en") StringsEn else StringsBn

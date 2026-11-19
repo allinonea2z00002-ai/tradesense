@@ -467,6 +467,13 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
     // Chart zoom state — কতটা ক্যান্ডেল দেখাবে, আর কতটা পিছনে গেছে
     var visibleCount by remember { mutableIntStateOf(60) }
     var startIndex by remember { mutableIntStateOf(0) }
+    // স্ক্রিনে এখন যা ক্যান্ডেল দেখা যাচ্ছে — স্ক্রিন অ্যানালিটিক্সের জন্য
+    val visibleCandles = remember(analysis.candles, visibleCount, startIndex) {
+        val total = analysis.candles.size
+        val end = (total - startIndex).coerceIn(0, total)
+        val start = (end - visibleCount).coerceAtLeast(0)
+        if (end > start) analysis.candles.subList(start, end) else emptyList()
+    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Price header
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
@@ -570,6 +577,28 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                     color = TradeMuted, fontSize = 11.sp
                 )
             }
+        }
+
+        // ফটো + স্ক্রিন অ্যানালিটিক্স বাটন
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AssistChip(
+                onClick = { vm.openPhotoAnalytics() },
+                label = { Text(s.photoAnalytics) },
+                modifier = Modifier.weight(1f),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = TradeCard,
+                    labelColor = Color.White
+                )
+            )
+            AssistChip(
+                onClick = { vm.openScreenAnalytics(visibleCandles) },
+                label = { Text(s.screenShort) },
+                modifier = Modifier.weight(1f),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = TradeCard,
+                    labelColor = Color.White
+                )
+            )
         }
 
         // Forecast — পরের ক্যান্ডেলগুলো
