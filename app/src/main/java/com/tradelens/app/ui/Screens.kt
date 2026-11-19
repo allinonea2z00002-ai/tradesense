@@ -246,7 +246,7 @@ private fun DetailCard(analysis: MarketAnalysis, state: TradeUiState, vm: TradeV
                 }
                 Spacer(Modifier.height(10.dp))
                 LinearProgressIndicator(
-                    progress = { analysis.score.total / 100f },
+                    progress = analysis.score.total / 100f,
                     modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
                     color = verdictColor,
                     trackColor = Color(0xFF26324A)
@@ -287,7 +287,7 @@ private fun DetailCard(analysis: MarketAnalysis, state: TradeUiState, vm: TradeV
                             Text("${s.probability}%", fontWeight = FontWeight.Bold)
                         }
                         LinearProgressIndicator(
-                            progress = { s.probability / 100f },
+                            progress = s.probability / 100f,
                             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                             color = when (s.name) {
                                 "Bullish" -> TradeGreen
