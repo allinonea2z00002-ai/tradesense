@@ -22,8 +22,8 @@ object MarketRepository {
         val news = if (offline) {
             listOf(
                 NewsItem(
-                    "Offline demo — live news-er jonno internet lagbe",
-                    "TradeLens", "Now", "",
+                    "অফলাইন ডেমো — লাইভ নিউজের জন্য ইন্টারনেট লাগবে",
+                    "TradeLens", "এখন", "",
                     com.tradelens.app.data.Sentiment.NEUTRAL
                 )
             )
@@ -72,44 +72,44 @@ object MarketRepository {
             else -> "SIDEWAYS"
         }
         val directionText = when (direction) {
-            "UP" -> "Uporer dike jete pare"
-            "DOWN" -> "Nicher dike jete pare"
-            else -> "Sideways thakte pare"
+            "UP" -> "উপরের দিকে যেতে পারে"
+            "DOWN" -> "নিচের দিকে যেতে পারে"
+            else -> "সাইডওয়েজ থাকতে পারে"
         }
-        val perCandleText = "$timeframe candle: porer 5 ta candle $directionText — " +
-            "mot ${if (movePct >= 0) "+" else ""}${"%.2f".format(movePct)}% porjonto, " +
-            "target $${"%,.2f".format(target)}"
+        val perCandleText = "$timeframe ক্যান্ডেল: পরের ৫টি ক্যান্ডেল $directionText — " +
+            "মোট ${if (movePct >= 0) "+" else ""}${"%.2f".format(movePct)}% পর্যন্ত, " +
+            "টার্গেট $${"%,.2f".format(target)}"
         val reasons = ArrayList<String>()
         when (analysis.trend) {
-            Trend.UPTREND -> reasons.add("Trend up — EMA20 EMA50-er upore, dam EMA20-er upore ache.")
-            Trend.DOWNTREND -> reasons.add("Trend down — EMA20 EMA50-er niche, dam chap-e ache.")
-            Trend.SIDEWAYS -> reasons.add("Trend sideways — kono ek dike jor nei, range-er vitore ghurche.")
+            Trend.UPTREND -> reasons.add("ট্রেন্ড আপ — EMA20 EMA50-এর উপরে, দাম EMA20-এর উপরে আছে।")
+            Trend.DOWNTREND -> reasons.add("ট্রেন্ড ডাউন — EMA20 EMA50-এর নিচে, দাম চাপে আছে।")
+            Trend.SIDEWAYS -> reasons.add("ট্রেন্ড সাইডওয়েজ — কোনো একদিকে জোর নেই, রেঞ্জের ভিতরে ঘুরছে।")
         }
         when {
-            analysis.rsi < 30 -> reasons.add("RSI ${"%.0f".format(analysis.rsi)} — oversold, ekhane bounce korte pare.")
-            analysis.rsi > 70 -> reasons.add("RSI ${"%.0f".format(analysis.rsi)} — overbought, niche ashar chance ache.")
-            else -> reasons.add("RSI ${"%.0f".format(analysis.rsi)} — neutral zone, upore jawar jayga ache.")
+            analysis.rsi < 30 -> reasons.add("RSI ${"%.0f".format(analysis.rsi)} — ওভারসোল্ড, এখানে বাউন্স করতে পারে।")
+            analysis.rsi > 70 -> reasons.add("RSI ${"%.0f".format(analysis.rsi)} — ওভারবট, নিচে আসার চান্স আছে।")
+            else -> reasons.add("RSI ${"%.0f".format(analysis.rsi)} — নিউট্রাল জোন, উপরে যাওয়ার জায়গা আছে।")
         }
         if (analysis.support > 0 && price > 0) {
             val distSupport = (price - analysis.support) / price * 100
             val distResistance = (analysis.resistance - price) / price * 100
-            if (distSupport in 0.0..2.0) reasons.add("Dam support-er khub kache — ekhane theke bounce korte pare.")
-            if (distResistance in 0.0..2.0) reasons.add("Dam resistance-er kache — vanghle upore jabe, na vanghle niche asbe.")
+            if (distSupport in 0.0..2.0) reasons.add("দাম সাপোর্টের খুব কাছে — এখান থেকে বাউন্স করতে পারে।")
+            if (distResistance in 0.0..2.0) reasons.add("দাম রেজিস্ট্যান্সের কাছে — ভাঙলে উপরে যাবে, না ভাঙলে নিচে আসবে।")
         }
         val pos = news.count { it.sentiment == Sentiment.POSITIVE }
         val neg = news.count { it.sentiment == Sentiment.NEGATIVE }
         when {
-            pos > neg -> reasons.add("News positive — valo khobor dam-ke upore tante pare.")
-            neg > pos -> reasons.add("News negative — kharap khobor dam-ke niche namate pare.")
+            pos > neg -> reasons.add("নিউজ পজিটিভ — ভালো খবর দামকে উপরে টানতে পারে।")
+            neg > pos -> reasons.add("নিউজ নেগেটিভ — খারাপ খবর দামকে নিচে নামাতে পারে।")
         }
         when {
-            analysis.volumeChangePct > 10 -> reasons.add("Volume barche — move-ta strong hote pare.")
-            analysis.volumeChangePct < -10 -> reasons.add("Volume komche — move durbol hote pare.")
+            analysis.volumeChangePct > 10 -> reasons.add("ভলিউম বাড়ছে — মুভটি শক্তিশালী হতে পারে।")
+            analysis.volumeChangePct < -10 -> reasons.add("ভলিউম কমছে — মুভ দুর্বল হতে পারে।")
         }
         val action = when (ScoreEngine.verdict(scoreTotal)) {
-            Verdict.STRONG_BUY -> "Score $scoreTotal+: ekhon kena jay, kintu Stop Loss $${"%,.2f".format(stopLoss)}-e rakho ar ekbare sob taka lagiyo na."
-            Verdict.WAIT -> "Ekhon wait koro — $${"%,.2f".format(target)} vangle kinba, ar $${"%,.2f".format(stopLoss)}-er niche gele kena thik hobe na."
-            Verdict.AVOID -> "Ekhon kino na — dam niche jawar chance beshi. Support-e ashle abar dekho."
+            Verdict.STRONG_BUY -> "স্কোর $scoreTotal+: এখন কেনা যায়, কিন্তু স্টপ লস $${"%,.2f".format(stopLoss)}-এ রাখুন আর একবারে সব টাকা লাগাবেন না।"
+            Verdict.WAIT -> "এখন অপেক্ষা করুন — $${"%,.2f".format(target)} ভাঙলে কিনবেন, আর $${"%,.2f".format(stopLoss)}-এর নিচে গেলে কেনা ঠিক হবে না।"
+            Verdict.AVOID -> "এখন কিনবেন না — দাম নিচে যাওয়ার চান্স বেশি। সাপোর্টে আসলে আবার দেখুন।"
         }
         return Forecast(
             candles = projected,

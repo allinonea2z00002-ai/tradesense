@@ -105,15 +105,15 @@ object ScoreEngine {
         val list = listOf(
             Scenario(
                 "Bullish", bull, target,
-                "Resistance vangle target-e jete pare."
+                "রেজিস্ট্যান্স ভাঙলে টার্গেটে যেতে পারে।"
             ),
             Scenario(
                 "Sideways", side, price,
-                "Range-er vitore thakte pare."
+                "রেঞ্জের ভিতরে থাকতে পারে।"
             ),
             Scenario(
                 "Bearish", bear, stopLoss,
-                "Support vangle niche jete pare."
+                "সাপোর্ট ভাঙলে নিচে যেতে পারে।"
             )
         )
         return Triple(list, stopLoss, target)

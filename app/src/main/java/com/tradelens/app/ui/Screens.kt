@@ -24,7 +24,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +42,7 @@ import com.tradelens.app.data.Category
 import com.tradelens.app.data.MarketAnalysis
 import com.tradelens.app.data.NewsItem
 import com.tradelens.app.data.Sentiment
+import com.tradelens.app.data.Trend
 import com.tradelens.app.data.Verdict
 import com.tradelens.app.ui.theme.TradeAmber
 import com.tradelens.app.ui.theme.TradeBg
@@ -61,11 +61,19 @@ fun fmtPrice(value: Double): String =
     else if (value >= 10) String.format(Locale.US, "%.2f", value)
     else String.format(Locale.US, "%.4f", value)
 
-// ================= HOME — coin-er list =================
+private fun categoryLabel(c: Category, s: UiText): String = when (c) {
+    Category.CRYPTO -> s.catCrypto
+    Category.FOREX -> s.catForex
+    Category.GOLD -> s.catGold
+    Category.STOCK -> s.catStock
+}
+
+// ================= HOME — কয়েনের লিস্ট =================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(state: TradeUiState, vm: TradeViewModel) {
+    val s = state.strings
     val filtered = if (state.category == null) state.assets
     else state.assets.filter { it.category == state.category }
     Scaffold(
@@ -74,10 +82,7 @@ fun HomeScreen(state: TradeUiState, vm: TradeViewModel) {
                 title = {
                     Column {
                         Text("TradeLens", fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        Text(
-                            "Chart + News + Score — er por ki hote pare",
-                            color = TradeMuted, fontSize = 12.sp
-                        )
+                        Text(s.appSubtitle, color = TradeMuted, fontSize = 12.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TradeBg)
@@ -95,28 +100,31 @@ fun HomeScreen(state: TradeUiState, vm: TradeViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "Sotto kotha: kono app-i 100% sothik predict korte pare na. " +
-                            "Eta sudhu decision nite help korbe.",
+                        s.disclaimer,
                         modifier = Modifier.padding(12.dp), fontSize = 12.sp, color = TradeAmber
                     )
                 }
                 Spacer(Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
-                        CategoryChip("Sob", state.category == null) { vm.selectCategory(null) }
+                        CategoryChip(s.all, state.category == null) { vm.selectCategory(null) }
                     }
                     items(Category.entries) { c ->
-                        CategoryChip(c.name, state.category == c) { vm.selectCategory(c) }
+                        CategoryChip(categoryLabel(c, s), state.category == c) { vm.selectCategory(c) }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("Coin-e tap koro — tar pura detail window khulbe", color = TradeMuted, fontSize = 13.sp)
+                Text(s.tapHint, color = TradeMuted, fontSize = 13.sp)
             }
             items(filtered) { asset ->
                 val quote = state.quotes[asset.id]
-                AssetRow(asset = asset, price = quote?.first, change24h = quote?.second) {
-                    vm.openDetail(asset)
-                }
+                AssetRow(
+                    asset = asset,
+                    price = quote?.first,
+                    change24h = quote?.second,
+                    starred = state.watchlist.contains(asset.id),
+                    onStar = { vm.toggleWatchlist(asset.id) }
+                ) { vm.openDetail(asset) }
             }
             item { Spacer(Modifier.height(16.dp)) }
         }
@@ -136,10 +144,12 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
 }
 
 @Composable
-private fun AssetRow(
+fun AssetRow(
     asset: Asset,
     price: Double?,
     change24h: Double?,
+    starred: Boolean = false,
+    onStar: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -178,16 +188,219 @@ private fun AssetRow(
                     )
                 }
             }
-            Text("  ›", color = TradeMuted, fontSize = 20.sp)
+            if (onStar != null) {
+                TextButton(onClick = onStar) {
+                    Text(
+                        if (starred) "★" else "☆",
+                        color = if (starred) TradeAmber else TradeMuted, fontSize = 20.sp
+                    )
+                }
+            } else {
+                Text("  ›", color = TradeMuted, fontSize = 20.sp)
+            }
         }
     }
 }
 
-// ================= DETAIL — ekta coin-er pura window =================
+// ================= টপ / ড্রপ =================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TopDropScreen(state: TradeUiState, vm: TradeViewModel) {
+    val s = state.strings
+    val byId = state.assets.associateBy { it.id }
+    val ranked = state.quotes.entries.sortedByDescending { it.value.second }
+    val gainers = ranked.take(5).mapNotNull { byId[it.key] }
+    val losers = ranked.takeLast(5).reversed().mapNotNull { byId[it.key] }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(s.navTopDrop, fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TradeBg)
+            )
+        },
+        containerColor = TradeBg
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
+            if (state.quotes.isEmpty()) {
+                item {
+                    Box(
+                        Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) { CircularProgressIndicator(color = TradeGreen) }
+                }
+            } else {
+                item {
+                    Text(s.topGainers, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TradeGreen)
+                }
+                items(gainers) { asset ->
+                    val q = state.quotes[asset.id]
+                    AssetRow(asset, q?.first, q?.second) { vm.openDetail(asset) }
+                }
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    Text(s.topLosers, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TradeRed)
+                }
+                items(losers) { asset ->
+                    val q = state.quotes[asset.id]
+                    AssetRow(asset, q?.first, q?.second) { vm.openDetail(asset) }
+                }
+            }
+            item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
+
+// ================= নিউজ =================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NewsScreen(state: TradeUiState, vm: TradeViewModel) {
+    val s = state.strings
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(s.latestNews, fontWeight = FontWeight.Bold) },
+                actions = {
+                    TextButton(onClick = { vm.loadAllNews() }) {
+                        Text(s.refresh, color = TradeGreen, fontWeight = FontWeight.Bold)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TradeBg)
+            )
+        },
+        containerColor = TradeBg
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
+            if (state.allNews.isEmpty()) {
+                item { Text(s.noNews, color = TradeMuted) }
+            }
+            items(state.allNews) { n -> NewsRow(n, s) }
+            item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
+
+// ================= ওয়াচলিস্ট =================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WatchlistScreen(state: TradeUiState, vm: TradeViewModel) {
+    val s = state.strings
+    val saved = state.assets.filter { state.watchlist.contains(it.id) }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(s.navWatchlist, fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TradeBg)
+            )
+        },
+        containerColor = TradeBg
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
+            if (saved.isEmpty()) {
+                item { Text(s.watchlistEmpty, color = TradeMuted) }
+            }
+            items(saved) { asset ->
+                val q = state.quotes[asset.id]
+                AssetRow(
+                    asset = asset,
+                    price = q?.first,
+                    change24h = q?.second,
+                    starred = true,
+                    onStar = { vm.toggleWatchlist(asset.id) }
+                ) { vm.openDetail(asset) }
+            }
+            item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
+
+// ================= সেটিংস =================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(state: TradeUiState, vm: TradeViewModel) {
+    val s = state.strings
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(s.settingsTitle, fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TradeBg)
+            )
+        },
+        containerColor = TradeBg
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Spacer(Modifier.height(4.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(s.languageTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AssistChip(
+                                onClick = { vm.setLanguage("bn") },
+                                label = { Text("বাংলা") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = if (state.lang == "bn") TradeGreen else TradeCard,
+                                    labelColor = if (state.lang == "bn") Color.Black else Color.White
+                                )
+                            )
+                            AssistChip(
+                                onClick = { vm.setLanguage("en") },
+                                label = { Text("English") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = if (state.lang == "en") TradeGreen else TradeCard,
+                                    labelColor = if (state.lang == "en") Color.Black else Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(s.aboutTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text(s.aboutText, color = TradeMuted)
+                        Text(s.refreshNote, color = TradeMuted)
+                    }
+                }
+            }
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF3A2A00))) {
+                    Text(
+                        s.disclaimer,
+                        modifier = Modifier.padding(12.dp), fontSize = 12.sp, color = TradeAmber
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+// ================= ডিটেইল — একটি কয়েনের পুরো উইন্ডো =================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(state: TradeUiState, vm: TradeViewModel) {
+    val s = state.strings
     val analysis = state.analysis
     val asset = state.detailAsset ?: state.selected
     Scaffold(
@@ -196,12 +409,12 @@ fun DetailScreen(state: TradeUiState, vm: TradeViewModel) {
                 title = { Text(asset.name, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     TextButton(onClick = { vm.closeDetail() }) {
-                        Text("‹ Back", color = TradeGreen, fontWeight = FontWeight.Bold)
+                        Text(s.back, color = TradeGreen, fontWeight = FontWeight.Bold)
                     }
                 },
                 actions = {
                     TextButton(onClick = { vm.refresh() }) {
-                        Text("↻ Refresh", color = TradeGreen, fontWeight = FontWeight.Bold)
+                        Text(s.refresh, color = TradeGreen, fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TradeBg)
@@ -235,11 +448,12 @@ fun DetailScreen(state: TradeUiState, vm: TradeViewModel) {
 
 @Composable
 private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: TradeViewModel) {
+    val s = state.strings
     val a = analysis.analysis
     val verdictText = when (analysis.verdict) {
-        Verdict.STRONG_BUY -> "Strong Buy"
-        Verdict.WAIT -> "Wait"
-        Verdict.AVOID -> "Avoid / Sell"
+        Verdict.STRONG_BUY -> s.verdictStrongBuy
+        Verdict.WAIT -> s.verdictWait
+        Verdict.AVOID -> s.verdictAvoid
     }
     val verdictColor = when (analysis.verdict) {
         Verdict.STRONG_BUY -> TradeGreen
@@ -275,7 +489,7 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
             }
             if (analysis.offlineDemo) {
                 Text(
-                    "Offline demo data — live price-er jonno internet lagbe",
+                    s.offlineDemo,
                     color = TradeAmber, fontSize = 12.sp,
                     modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
                 )
@@ -285,7 +499,7 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
         // Chart + timeframe
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp)) {
-                Text("Chart — ${state.timeframe} candle", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("${s.chartTitle} — ${state.timeframe}", fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(vm.timeframes) { tf ->
@@ -307,24 +521,15 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                     resistance = a.resistance,
                     forecast = analysis.forecast.candles
                 )
-                Text(
-                    "— Sobuj line: Support  " + fmtPrice(a.support) +
-                        "    — Lal line: Resistance  " + fmtPrice(a.resistance) +
-                        "    — Nil: EMA20",
-                    color = TradeMuted, fontSize = 11.sp
-                )
-                Text(
-                    "Daan diker halka (dashed) candle-gula forecast — porer candle kemon hote pare. " +
-                        "Holud dashed line: forecast-e kothay jete pare.",
-                    color = TradeAmber, fontSize = 11.sp
-                )
+                Text(s.chartLegend, color = TradeMuted, fontSize = 11.sp)
+                Text(s.forecastLegend, color = TradeAmber, fontSize = 11.sp)
             }
         }
 
-        // Forecast — porer candle-gula
+        // Forecast — পরের ক্যান্ডেলগুলো
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Porer candle-gula kemon hote pare?", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(s.forecastTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 val f = analysis.forecast
                 val dirColor = when (f.direction) {
                     "UP" -> TradeGreen
@@ -333,7 +538,7 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                 }
                 Text(
                     f.directionText + "  •  " +
-                        (if (f.movePct >= 0) "+" else "") + fmt(f.movePct, 2) + "% porjonto",
+                        (if (f.movePct >= 0) "+" else "") + fmt(f.movePct, 2) + "% পর্যন্ত",
                     fontWeight = FontWeight.Bold, color = dirColor, fontSize = 16.sp
                 )
                 Text(f.perCandleText, color = TradeMuted, fontSize = 13.sp)
@@ -342,7 +547,7 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                     val chg = if (prev > 0) (c.close - prev) / prev * 100 else 0.0
                     Row(Modifier.fillMaxWidth()) {
                         Text(
-                            "Candle ${i + 1} (${state.timeframe})",
+                            "ক্যান্ডেল ${i + 1} (${state.timeframe})",
                             modifier = Modifier.weight(1f), color = TradeMuted
                         )
                         Text(
@@ -355,14 +560,11 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                     }
                     prev = c.close
                 }
-                Text(
-                    "Eta demo projection — trend, RSI ar ATR diye banano. Guarantee na.",
-                    color = TradeMuted, fontSize = 11.sp
-                )
+                Text(s.forecastNote, color = TradeMuted, fontSize = 11.sp)
             }
         }
 
-        // Score — main jinish
+        // Score
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -373,7 +575,7 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(verdictText, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = verdictColor)
-                        Text("Score 70+ Strong Buy • 40–70 Wait • 40- Avoid", color = TradeMuted, fontSize = 12.sp)
+                        Text(s.scoreHint, color = TradeMuted, fontSize = 12.sp)
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -386,85 +588,85 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
                 Spacer(Modifier.height(12.dp))
                 ScoreRow("Trend (${a.trend})", analysis.score.trendPoints, 20)
                 ScoreRow("RSI (${fmt(a.rsi, 1)})", analysis.score.rsiPoints, 15)
-                ScoreRow("Support-er kache", analysis.score.supportPoints, 20)
-                ScoreRow("News sentiment", analysis.score.newsPoints, 15)
-                ScoreRow("Volume (${fmt(a.volumeChangePct, 0)}%)", analysis.score.volumePoints, 10)
+                ScoreRow("সাপোর্টের কাছে", analysis.score.supportPoints, 20)
+                ScoreRow("নিউজ সেন্টিমেন্ট", analysis.score.newsPoints, 15)
+                ScoreRow("ভলিউম (${fmt(a.volumeChangePct, 0)}%)", analysis.score.volumePoints, 10)
                 ScoreRow("MACD", analysis.score.macdPoints, 10)
                 ScoreRow("EMA 20/50", analysis.score.emaPoints, 10)
             }
         }
 
-        // Ekhon ki obostha
+        // এখন কী অবস্থা
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Ekhon ki obostha?", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(s.situationTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 val trendText = when (a.trend) {
-                    com.tradelens.app.data.Trend.UPTREND -> "Trend up — dam upore jawar pothe ache."
-                    com.tradelens.app.data.Trend.DOWNTREND -> "Trend down — dam niche jawar pothe ache."
-                    com.tradelens.app.data.Trend.SIDEWAYS -> "Trend sideways — dam ekta range-er vitore ghurche."
+                    Trend.UPTREND -> "ট্রেন্ড আপ — দাম উপরে যাওয়ার পথে আছে।"
+                    Trend.DOWNTREND -> "ট্রেন্ড ডাউন — দাম নিচে যাওয়ার পথে আছে।"
+                    Trend.SIDEWAYS -> "ট্রেন্ড সাইডওয়েজ — দাম একটি রেঞ্জের ভিতরে ঘুরছে।"
                 }
                 Text(trendText)
-                Text("Price Action: ${a.pattern}")
+                Text("প্রাইস অ্যাকশন: ${a.pattern}")
                 Text(
                     "RSI ${fmt(a.rsi, 1)} — " +
-                        if (a.rsi < 30) "oversold, bounce korte pare."
-                        else if (a.rsi > 70) "overbought, niche ashar chance."
-                        else "neutral zone."
+                        if (a.rsi < 30) "ওভারসোল্ড, বাউন্স করতে পারে।"
+                        else if (a.rsi > 70) "ওভারবট, নিচে আসার চান্স।"
+                        else "নিউট্রাল জোন।"
                 )
                 Text(
-                    "Support $${fmtPrice(a.support)} ar Resistance $${fmtPrice(a.resistance)}-er majhkhane dam $${fmtPrice(analysis.price)}-e ache."
+                    "সাপোর্ট $${fmtPrice(a.support)} আর রেজিস্ট্যান্স $${fmtPrice(a.resistance)}-এর মাঝখানে দাম $${fmtPrice(analysis.price)}-এ আছে।"
                 )
-                Text("Target: $${fmtPrice(analysis.target)}  •  Stop Loss: $${fmtPrice(analysis.stopLoss)}")
+                Text("টার্গেট: $${fmtPrice(analysis.target)}  •  স্টপ লস: $${fmtPrice(analysis.stopLoss)}")
             }
         }
 
-        // Samne ki hote pare
+        // সামনে কী হতে পারে
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Samne ki hote pare? (probability, guarantee na)", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                analysis.scenarios.forEach { s ->
+                Text(s.nextTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                analysis.scenarios.forEach { sc ->
                     Column {
                         Row(Modifier.fillMaxWidth()) {
-                            Text(s.name, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                            Text("${s.probability}%", fontWeight = FontWeight.Bold)
+                            Text(sc.name, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            Text("${sc.probability}%", fontWeight = FontWeight.Bold)
                         }
                         LinearProgressIndicator(
-                            progress = s.probability / 100f,
+                            progress = sc.probability / 100f,
                             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                            color = when (s.name) {
+                            color = when (sc.name) {
                                 "Bullish" -> TradeGreen
                                 "Bearish" -> TradeRed
                                 else -> TradeAmber
                             },
                             trackColor = Color(0xFF26324A)
                         )
-                        Text(s.description + " Target: $" + fmtPrice(s.target), color = TradeMuted, fontSize = 12.sp)
+                        Text(sc.description + " টার্গেট: $" + fmtPrice(sc.target), color = TradeMuted, fontSize = 12.sp)
                     }
                 }
             }
         }
 
-        // Keno hote pare
+        // কী কারণে হতে পারে
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Ki karone hote pare?", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(s.whyTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 analysis.forecast.reasons.forEach { r ->
                     Text("•  $r")
                 }
             }
         }
 
-        // Ki kora uchit
+        // কী করা উচিত
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF12233D))) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Ki kora uchit?", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TradeGreen)
+                Text(s.actionTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TradeGreen)
                 Text(analysis.forecast.action)
                 Text(
-                    "Target: $${fmtPrice(analysis.target)}  •  Stop Loss: $${fmtPrice(analysis.stopLoss)}",
+                    "টার্গেট: $${fmtPrice(analysis.target)}  •  স্টপ লস: $${fmtPrice(analysis.stopLoss)}",
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Taka laganor decision tomar nijer — app sudhu help korbe.",
+                    "টাকা লাগানোর সিদ্ধান্ত আপনার নিজের — অ্যাপ শুধু সাহায্য করবে।",
                     color = TradeMuted, fontSize = 12.sp
                 )
             }
@@ -473,25 +675,25 @@ private fun DetailContent(analysis: MarketAnalysis, state: TradeUiState, vm: Tra
         // Indicators
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Indicator", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                IndicatorRow("RSI (14)", fmt(a.rsi, 1) + if (a.rsi < 30) " — Oversold" else if (a.rsi > 70) " — Overbought" else " — Neutral")
-                IndicatorRow("MACD", fmt(a.macd, 2) + " / Signal " + fmt(a.macdSignal, 2))
+                Text(s.indicatorsTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                IndicatorRow("RSI (14)", fmt(a.rsi, 1) + if (a.rsi < 30) " — ওভারসোল্ড" else if (a.rsi > 70) " — ওভারবট" else " — নিউট্রাল")
+                IndicatorRow("MACD", fmt(a.macd, 2) + " / সিগন্যাল " + fmt(a.macdSignal, 2))
                 IndicatorRow("EMA 20 / 50", fmtPrice(a.ema20) + " / " + fmtPrice(a.ema50))
-                IndicatorRow("Support / Resistance", fmtPrice(a.support) + " / " + fmtPrice(a.resistance))
-                IndicatorRow("Price Action", a.pattern)
+                IndicatorRow("সাপোর্ট / রেজিস্ট্যান্স", fmtPrice(a.support) + " / " + fmtPrice(a.resistance))
+                IndicatorRow("প্রাইস অ্যাকশন", a.pattern)
                 IndicatorRow("ATR", fmtPrice(a.atr))
-                IndicatorRow("Target / Stop Loss", fmtPrice(analysis.target) + " / " + fmtPrice(analysis.stopLoss))
+                IndicatorRow("টার্গেট / স্টপ লস", fmtPrice(analysis.target) + " / " + fmtPrice(analysis.stopLoss))
             }
         }
 
         // News
         Card(colors = CardDefaults.cardColors(containerColor = TradeCard)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Latest News", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(s.latestNews, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 if (analysis.news.isEmpty()) {
-                    Text("Kono news pai ni.", color = TradeMuted)
+                    Text(s.noNews, color = TradeMuted)
                 }
-                analysis.news.forEach { n -> NewsRow(n) }
+                analysis.news.forEach { n -> NewsRow(n, s) }
             }
         }
     }
@@ -514,16 +716,16 @@ private fun IndicatorRow(label: String, value: String) {
 }
 
 @Composable
-private fun NewsRow(n: NewsItem) {
+private fun NewsRow(n: NewsItem, s: UiText) {
     val color = when (n.sentiment) {
         Sentiment.POSITIVE -> TradeGreen
         Sentiment.NEGATIVE -> TradeRed
         Sentiment.NEUTRAL -> TradeMuted
     }
     val tag = when (n.sentiment) {
-        Sentiment.POSITIVE -> "● Positive"
-        Sentiment.NEGATIVE -> "● Negative"
-        Sentiment.NEUTRAL -> "● Neutral"
+        Sentiment.POSITIVE -> s.tagPositive
+        Sentiment.NEGATIVE -> s.tagNegative
+        Sentiment.NEUTRAL -> s.tagNeutral
     }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
